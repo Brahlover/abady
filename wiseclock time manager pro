@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiseClock Productivity Dashboard</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+
+        /* --- CSS Variables for Themability (Default Dark/Blue) --- */
+        :root {
+            --color-bg-primary: #0f0f0f;
+            --color-bg-card: #1a1a1a;
+            --color-text-primary: #e5e5e5;
+            --color-accent-dark: #3B82F6;
+            
+            /* NEW Explicit Clock Colors */
+            --color-hand-hour: #93C5FD;
+            --color-hand-minute: #60A5FA;
+            --color-hand-second: #3B82F6;
+            --color-hour-number: #60A5FA;
+            
+            --bg-image-url: none;
+            --clock-image-url: none;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-bg-primary);
+            min-height: 100vh;
+            color: var(--color-text-primary);
+            transition: background-color 0.5s;
+            background-image: var(--bg-image-url);
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+        .container-card {
+            background-color: var(--color-bg-card);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+            border: 1px solid #333333;
+            /* Allow transparency if background image is set */
+            background-color: var(--color-bg-card);
+            opacity: 0.98;
+        }
+
+        /* Dynamic Clock Styles */
+        #clock-svg #clock-face-image {
+            fill: var(--color-bg-primary);
+            transition: all 0.5s;
+            /* Apply clock image if available */
+            background-image: var(--clock-image-url);
+            background-size: cover;
+            background-position: center;
+        }
+
+        .clock-center {
+            fill: var(--color-accent-dark);
+            stroke: var(--color-bg-card);
+            stroke-width: 5;
+        }
+        .clock-hand {
+            transform-origin: 100px 100px;
+            transition: all 0.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+        /* Updated to use explicit hand color variables */
+        .hand-second { stroke: var(--color-hand-second); stroke-width: 2; }
+        .hand-minute { stroke: var(--color-hand-minute); stroke-width: 4; }
+        .hand-hour { stroke: var(--color-hand-hour); stroke-width: 6; }
+        .marker { stroke: #333333; stroke-width: 1; }
+        /* Updated to use explicit number color variable */
+        .hour-number { fill: var(--color-hour-number); font-size: 14px; font-weight: bold; }
+
+        /* Tailwind overrides for variables */
+        .text-accent { color: var(--color-accent-dark); }
+        .border-accent { border-color: var(--color-accent-dark); }
+        .bg-accent-btn { background-color: var(--color-accent-dark); color: #fff; }
+        .hover\:bg-accent-btn:hover { background-color: var(--color-hand-minute); } /* Using minute hand color for hover, as a subtle variation */
+        .ring-accent:focus { ring-color: var(--color-accent-dark); border-color: var(--color-accent-dark); }
+        
+        /* Custom image fill for SVG clock face */
+        #clock-face-pattern {
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center justify-center">
+
+    <div class="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        <!-- Clock and Status (Col 1) -->
+        <div class="lg:col-span-1 flex flex-col items-center justify-center">
+            <h1 class="text-3xl font-extrabold mb-6 text-center text-accent">
+                <span class="inline-block transform rotate-[-5deg] mr-2">👑</span> WiseClock
+            </h1>
+
+            <div class="container-card rounded-3xl p-6 w-full max-w-sm">
+
+                <!-- SVG Clock Face -->
+                <svg id="clock-svg" viewBox="0 0 200 200" class="w-full h-auto">
+                    <!-- Define pattern for clock face background -->
+                    <defs>
+                        <pattern id="clock-face-pattern" patternUnits="userSpaceOnUse" width="200" height="200">
+                            <!-- Image will be injected here if clock-image-url is set -->
+                            <image id="clock-face-image-el" x="0" y="0" width="200" height="200" preserveAspectRatio="xMidYMid slice" style="display: none;"/>
+                        </pattern>
+                    </defs>
+
+                    <!-- Clock Background/Outer Rim - Filled with Pattern or Color -->
+                    <circle cx="100" cy="100" r="95" id="clock-face-fill" fill="var(--color-bg-primary)" stroke="#333333" stroke-width="2"/>
+
+                    <!-- Task Segments Container -->
+                    <g id="task-segments"></g>
+
+                    <!-- Markers and Numbers -->
+                    <g class="marker">
+                        <!-- Hour markers remain for visibility -->
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(0, 100, 100)"/>
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(30, 100, 100)"/>
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(60, 100, 100)"/>
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(90, 100, 100)"/>
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(120, 100, 100)"/>
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(150, 100, 100)"/>
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(180, 100, 100)"/>
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(210, 100, 100)"/>
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(240, 100, 100)"/>
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(270, 100, 100)"/>
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(300, 100, 100)"/>
+                        <line x1="100" y1="5" x2="100" y2="15" transform="rotate(330, 100, 100)"/>
+                    </g>
+                    <g id="hour-numbers" class="hour-number">
+                        <text x="100" y="20" text-anchor="middle" dominant-baseline="central">12</text>
+                        <text x="140" y="30.7" text-anchor="middle" dominant-baseline="central">1</text>
+                        <text x="169.3" y="60" text-anchor="middle" dominant-baseline="central">2</text>
+                        <text x="180" y="100" text-anchor="middle" dominant-baseline="central">3</text>
+                        <text x="169.3" y="140" text-anchor="middle" dominant-baseline="central">4</text>
+                        <text x="140" y="169.3" text-anchor="middle" dominant-baseline="central">5</text>
+                        <text x="100" y="180" text-anchor="middle" dominant-baseline="central">6</text>
+                        <text x="60" y="169.3" text-anchor="middle" dominant-baseline="central">7</text>
+                        <text x="30.7" y="140" text-anchor="middle" dominant-baseline="central">8</text>
+                        <text x="20" y="100" text-anchor="middle" dominant-baseline="central">9</text>
+                        <text x="30.7" y="60" text-anchor="middle" dominant-baseline="central">10</text>
+                        <text x="60" y="30.7" text-anchor="middle" dominant-baseline="central">11</text>
+                    </g>
+
+                    <!-- Clock Hands -->
+                    <line id="minute-hand" x1="100" y1="100" x2="100" y2="25" class="clock-hand hand-minute" stroke-linecap="round"/>
+                    <line id="hour-hand" x1="100" y1="100" x2="100" y2="45" class="clock-hand hand-hour" stroke-linecap="round"/>
+                    <line id="second-hand" x1="100" y1="100" x2="100" y2="20" class="clock-hand hand-second" stroke-linecap="round"/>
+
+                    <!-- Center Cap -->
+                    <circle cx="100" cy="100" r="4" class="clock-center"/>
+                </svg>
+                <!-- End SVG Clock Face -->
+
+                <div class="mt-4 text-center">
+                    <p id="time-display" class="text-3xl font-mono font-bold text-accent"></p>
+                    <p id="capacity-display" class="text-lg text-gray-400 mt-2"></p>
+                </div>
+            </div>
+
+            <button id="reset-button" class="mt-8 py-3 px-6 bg-red-600 hover:bg-red-700 rounded-xl font-bold transition duration-200 shadow-lg shadow-red-900/50 text-white">
+                Reset All Tasks
+            </button>
+            <p class="mt-4 text-xs text-gray-500">Data saved locally in browser.</p>
+        </div>
+
+        <!-- Right Side: Theme, Images, Tasks -->
+        <div class="lg:col-span-2 space-y-8">
+
+            <!-- Theme and Image Manager -->
+            <div class="container-card rounded-xl p-6">
+                <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 text-accent">🎨 Design & Theme Manager</h2>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- Theme Color Picker & Save -->
+                    <div class="space-y-4">
+                        <form id="save-theme-form" class="space-y-3">
+                            
+                            <!-- App UI Colors -->
+                            <h3 class="text-lg font-medium text-gray-400 border-b border-gray-700 pb-1">App UI Colors</h3>
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="col-span-1">
+                                    <label for="color-accent" class="block text-sm font-medium mb-1">Accent</label>
+                                    <input type="color" id="color-accent" class="w-full h-10 p-1 rounded-lg bg-gray-700 border border-gray-600 cursor-pointer color-picker">
+                                </div>
+                                <div class="col-span-1">
+                                    <label for="color-bg" class="block text-sm font-medium mb-1">Background</label>
+                                    <input type="color" id="color-bg" class="w-full h-10 p-1 rounded-lg bg-gray-700 border border-gray-600 cursor-pointer color-picker">
+                                </div>
+                                <div class="col-span-1">
+                                    <label for="color-card" class="block text-sm font-medium mb-1">Card</label>
+                                    <input type="color" id="color-card" class="w-full h-10 p-1 rounded-lg bg-gray-700 border border-gray-600 cursor-pointer color-picker">
+                                </div>
+                            </div>
+                            
+                            <!-- Clock Element Colors - NEW ROW -->
+                            <h3 class="text-lg font-medium text-gray-400 border-b border-gray-700 pb-1 pt-2">Clock Element Colors</h3>
+                            <div class="grid grid-cols-4 gap-3">
+                                <div class="col-span-1">
+                                    <label for="color-hand-hour" class="block text-sm font-medium mb-1">H. Hand</label>
+                                    <input type="color" id="color-hand-hour" class="w-full h-10 p-1 rounded-lg bg-gray-700 border border-gray-600 cursor-pointer color-picker">
+                                </div>
+                                <div class="col-span-1">
+                                    <label for="color-hand-minute" class="block text-sm font-medium mb-1">M. Hand</label>
+                                    <input type="color" id="color-hand-minute" class="w-full h-10 p-1 rounded-lg bg-gray-700 border border-gray-600 cursor-pointer color-picker">
+                                </div>
+                                <div class="col-span-1">
+                                    <label for="color-hand-second" class="block text-sm font-medium mb-1">S. Hand</label>
+                                    <input type="color" id="color-hand-second" class="w-full h-10 p-1 rounded-lg bg-gray-700 border border-gray-600 cursor-pointer color-picker">
+                                </div>
+                                <div class="col-span-1">
+                                    <label for="color-hour-number" class="block text-sm font-medium mb-1">Numbers</label>
+                                    <input type="color" id="color-hour-number" class="w-full h-10 p-1 rounded-lg bg-gray-700 border border-gray-600 cursor-pointer color-picker">
+                                </div>
+                            </div>
+
+                            <input type="text" id="theme-name" required placeholder="Name this design (e.g., Deep Focus Blue)" class="ring-accent w-full p-2 rounded-lg bg-[#0f0f0f] border border-[#333333] focus:ring-1 focus:border-accent text-gray-200">
+                            <button type="submit" class="w-full py-2 bg-accent-btn hover:bg-accent-btn rounded-lg font-bold transition duration-150">
+                                Save Current Design
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Image Uploads -->
+                    <div class="space-y-4">
+                        <h3 class="text-xl font-semibold text-gray-200">Backgrounds</h3>
+                        <div class="space-y-3">
+                            <div class="border border-gray-700 p-3 rounded-lg">
+                                <label for="upload-bg-image" class="block text-sm font-medium mb-2">Body Background Image</label>
+                                <input type="file" id="upload-bg-image" accept="image/*" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-600 file:text-white hover:file:bg-gray-700">
+                                <button id="clear-bg-image" class="mt-2 w-full py-1 text-sm bg-gray-600 hover:bg-gray-700 rounded-lg text-white">Clear Background Image</button>
+                            </div>
+                            <div class="border border-gray-700 p-3 rounded-lg">
+                                <label for="upload-clock-image" class="block text-sm font-medium mb-2">Clock Face Image</label>
+                                <input type="file" id="upload-clock-image" accept="image/*" class="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-600 file:text-white hover:file:bg-gray-700">
+                                <button id="clear-clock-image" class="mt-2 w-full py-1 text-sm bg-gray-600 hover:bg-gray-700 rounded-lg text-white">Clear Clock Image</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Load Themes -->
+                <div class="mt-6 border-t border-gray-700 pt-4">
+                    <h3 class="text-xl font-semibold mb-3 text-gray-200">Apply Saved Designs</h3>
+                    <div id="themes-list" class="space-y-2 max-h-48 overflow-y-auto pr-2">
+                        <p class="text-gray-500">No saved designs yet.</p>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- Task Form: New Time/Past Time Support -->
+            <div class="container-card rounded-xl p-6">
+                <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 text-accent">➕ Plan Time Block (Past or Future)</h2>
+                <form id="add-task-form" class="space-y-4">
+                    <!-- Task Name -->
+                    <div>
+                        <label for="task-name" class="block text-sm font-medium mb-1">Block Name</label>
+                        <input type="text" id="task-name" class="ring-accent w-full p-2 rounded-lg bg-[#0f0f0f] border border-[#333333] focus:ring-1 focus:border-accent text-gray-200" required placeholder="E.g., Client Meeting or Project Review">
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Start Date -->
+                        <div>
+                            <label for="task-date" class="block text-sm font-medium mb-1">Start Date</label>
+                            <input type="date" id="task-date" class="ring-accent w-full p-2 rounded-lg bg-[#0f0f0f] border border-[#333333] focus:ring-1 focus:border-accent text-gray-200" required>
+                        </div>
+                        <!-- Start Time -->
+                        <div>
+                            <label for="task-time" class="block text-sm font-medium mb-1">Start Time</label>
+                            <input type="time" id="task-time" class="ring-accent w-full p-2 rounded-lg bg-[#0f0f0f] border border-[#333333] focus:ring-1 focus:border-accent text-gray-200" required>
+                        </div>
+                        <!-- Duration (Flexible H/M) -->
+                        <div>
+                            <label for="task-duration-input" class="block text-sm font-medium mb-1">Duration (e.g., 90m or 1h 30m)</label>
+                            <input type="text" id="task-duration-input" value="60m" class="ring-accent w-full p-2 rounded-lg bg-[#0f0f0f] border border-[#333333] focus:ring-1 focus:border-accent text-gray-200" required placeholder="e.g., 1h 30m or 90">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="w-full py-2 bg-accent-btn hover:bg-accent-btn rounded-lg font-bold transition duration-150">
+                        Add Time Block
+                    </button>
+                </form>
+            </div>
+
+            <!-- Task List -->
+            <div class="container-card rounded-xl p-6">
+                <h2 class="text-2xl font-semibold mb-4 border-b border-gray-700 pb-2 text-accent">📅 Task Timeline</h2>
+                <p class="text-xs text-gray-500 mb-4">Tasks are sorted chronologically by their start time.</p>
+                <div id="message-box" class="hidden rounded-lg p-3 mb-4 transition-opacity duration-300"></div>
+                <div id="task-list" class="space-y-3">
+                    <p class="text-gray-500 text-center py-4">Add a time block above.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- GLOBAL CONSTANTS ---
+        const CLOCK_RADIUS = 95;
+        const CLOCK_CENTER = 100;
+        const DEGREES_PER_TASK_MINUTE = 0.5;
+        const INITIAL_COLORS = ["#3B82F6", "#FBBF24", "#10B981", "#EF4444", "#6366F1", "#06B6D4", "#EC4899", "#A855F7"];
+        
+        // --- STATE & UI ELEMENTS ---
+        let taskQueue = [];
+        let colorIndex = 0;
+        let savedThemes = [];
+
+        const ui = {
+            hourHand: document.getElementById('hour-hand'),
+            minuteHand: document.getElementById('minute-hand'),
+            secondHand: document.getElementById('second-hand'),
+            timeDisplay: document.getElementById('time-display'),
+            capacityDisplay: document.getElementById('capacity-display'),
+            taskSegments: document.getElementById('task-segments'),
+            taskList: document.getElementById('task-list'),
+            messageBox: document.getElementById('message-box'),
+            clockFaceFill: document.getElementById('clock-face-fill'),
+            clockImageEl: document.getElementById('clock-face-image-el'),
+            // UI Colors
+            colorAccent: document.getElementById('color-accent'),
+            colorBg: document.getElementById('color-bg'),
+            colorCard: document.getElementById('color-card'),
+            // NEW Clock Colors
+            colorHandHour: document.getElementById('color-hand-hour'),
+            colorHandMinute: document.getElementById('color-hand-minute'),
+            colorHandSecond: document.getElementById('color-hand-second'),
+            colorHourNumber: document.getElementById('color-hour-number'),
+
+            themeNameInput: document.getElementById('theme-name'),
+            themesList: document.getElementById('themes-list'),
+            taskDateInput: document.getElementById('task-date'),
+            taskTimeInput: document.getElementById('task-time'),
+            taskNameInput: document.getElementById('task-name'),
+            taskDurationInput: document.getElementById('task-duration-input'),
+            uploadBgImage: document.getElementById('upload-bg-image'),
+            uploadClockImage: document.getElementById('upload-clock-image'),
+        };
+
+        // Mapping from color picker ID to CSS variable name for easy updates
+        const colorInputMap = {
+            'color-accent': '--color-accent-dark',
+            'color-bg': '--color-bg-primary',
+            'color-card': '--color-bg-card',
+            'color-hand-hour': '--color-hand-hour',
+            'color-hand-minute': '--color-hand-minute',
+            'color-hand-second': '--color-hand-second',
+            'color-hour-number': '--color-hour-number'
+        };
+
+        // --- LOCAL STORAGE UTILITIES ---
+
+        function loadFromLocalStorage(key, defaultValue) {
+            try {
+                const data = localStorage.getItem(key);
+                return data ? JSON.parse(data) : defaultValue;
+            } catch (e) {
+                console.error(`Error loading ${key}:`, e);
+                return defaultValue;
+            }
+        }
+
+        function saveToLocalStorage(key, data) {
+            try {
+                localStorage.setItem(key, JSON.stringify(data));
+            } catch (e) {
+                console.error(`Error saving ${key}:`, e);
+            }
+        }
+
+        // --- TASK LOGIC ---
+
+        /**
+         * Parses duration string (e.g., "1h 30m", "90", "2 hours") into total minutes.
+         * @param {string} durationStr - The raw input string.
+         * @returns {number} Total minutes.
+         */
+        function parseDurationToMinutes(durationStr) {
+            durationStr = String(durationStr).toLowerCase().replace(/\s/g, '');
+            let totalMinutes = 0;
+            const hourMatch = durationStr.match(/(\d+)(h|hour)/);
+            const minuteMatch = durationStr.match(/(\d+)(m|min)/);
+            const numericMatch = durationStr.match(/^\d+$/);
+
+            if (hourMatch) {
+                totalMinutes += parseInt(hourMatch[1]) * 60;
+            }
+            if (minuteMatch) {
+                totalMinutes += parseInt(minuteMatch[1]);
+            }
+            if (numericMatch && !hourMatch && !minuteMatch) {
+                // If only a number is provided, assume it is minutes
+                totalMinutes += parseInt(numericMatch[0]);
+            }
+
+            return totalMinutes;
+        }
+        
+        function convertMinutesToTime(totalMinutes) {
+            const wrappedMins = totalMinutes % (24 * 60);
+            const h = Math.floor(wrappedMins / 60);
+            const m = wrappedMins % 60;
+            const period = h >= 12 ? 'PM' : 'AM';
+            const displayHour = h % 12 || 12;
+            return `${displayHour.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${period}`;
+        }
+
+        function addTask(name, dateStr, timeStr, durationMinutes) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            const [hour, minute] = timeStr.split(':').map(Number);
+            
+            // Create a Date object representing the task's start time
+            const taskStart = new Date(year, month - 1, day, hour, minute, 0, 0);
+            const taskEnd = new Date(taskStart.getTime() + durationMinutes * 60000);
+            
+            // Calculate minutes from midnight for clock visualization
+            const startMinuteOfDay = (taskStart.getHours() * 60) + taskStart.getMinutes();
+
+            const color = INITIAL_COLORS[colorIndex % INITIAL_COLORS.length];
+            colorIndex++;
+
+            const newTask = {
+                id: crypto.randomUUID(),
+                name: name,
+                duration: durationMinutes,
+                color: color,
+                // Full timestamps for accurate sorting and display
+                startTime: taskStart.getTime(), 
+                endTime: taskEnd.getTime(),
+                // Minutes from midnight for SVG rendering
+                startMinuteOfDay: startMinuteOfDay,
+            };
+
+            taskQueue.push(newTask);
+            sortAndSaveTasks();
+            showMessage(`Time block '${name}' (${durationMinutes} mins) added at ${taskStart.toLocaleTimeString()}!`, 'bg-green-600');
+        }
+
+        function removeTask(taskId) {
+            const initialLength = taskQueue.length;
+            taskQueue = taskQueue.filter(task => task.id !== taskId);
+
+            if (taskQueue.length < initialLength) {
+                sortAndSaveTasks(); // Re-sort and re-render
+                showMessage('Time block removed.', 'bg-yellow-600');
+            }
+        }
+
+        function sortAndSaveTasks() {
+             // Sort by full timestamp, which is required when adding past tasks
+            taskQueue.sort((a, b) => a.startTime - b.startTime);
+            saveToLocalStorage('wiseclockTasks', taskQueue);
+            renderSegments();
+            renderTaskList();
+        }
+
+        // --- THEME LOGIC ---
+
+        function applyTheme(theme) {
+            const root = document.documentElement;
+            
+            // UI Colors
+            root.style.setProperty('--color-bg-primary', theme.backgroundColor);
+            root.style.setProperty('--color-bg-card', theme.cardColor);
+            root.style.setProperty('--color-accent-dark', theme.accentColor);
+            
+            // Clock Colors (Now explicitly controlled)
+            root.style.setProperty('--color-hand-hour', theme.handHourColor);
+            root.style.setProperty('--color-hand-minute', theme.handMinuteColor);
+            root.style.setProperty('--color-hand-second', theme.handSecondColor);
+            root.style.setProperty('--color-hour-number', theme.numberColor);
+
+            // Apply images
+            applyBackgroundImage(theme.bgImage, false);
+            applyClockImage(theme.clockImage, false);
+
+            // Update color pickers to reflect the applied theme
+            ui.colorAccent.value = theme.accentColor;
+            ui.colorBg.value = theme.backgroundColor;
+            ui.colorCard.value = theme.cardColor;
+            ui.colorHandHour.value = theme.handHourColor;
+            ui.colorHandMinute.value = theme.handMinuteColor;
+            ui.colorHandSecond.value = theme.handSecondColor;
+            ui.colorHourNumber.value = theme.numberColor;
+
+            saveToLocalStorage('wiseclockCurrentThemeId', theme.id);
+            showMessage(`Design '${theme.name}' applied!`, 'bg-blue-600');
+            renderSegments(); // Re-render segments to pick up new colors
+        }
+        
+        function renderThemeList() {
+            ui.themesList.innerHTML = '';
+            if (savedThemes.length === 0) {
+                ui.themesList.innerHTML = '<p class="text-gray-500">No saved designs yet.</p>';
+                return;
+            }
+
+            savedThemes.forEach((theme) => {
+                const themeEl = document.createElement('div');
+                themeEl.className = 'flex items-center justify-between p-2 rounded-lg container-card border-l-4 transition hover:bg-[#282828]';
+                themeEl.style.borderColor = theme.accentColor;
+                themeEl.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <span class="w-4 h-4 rounded-full" style="background-color: ${theme.accentColor};"></span>
+                        <span class="text-sm font-semibold">${theme.name}</span>
+                    </div>
+                    <div>
+                        <button data-theme-id="${theme.id}" class="apply-theme-btn py-1 px-3 text-xs bg-gray-600 hover:bg-gray-700 rounded-lg transition duration-150 mr-2">
+                            Apply
+                        </button>
+                        <button data-theme-id="${theme.id}" class="remove-theme-btn py-1 px-3 text-xs bg-red-600 hover:bg-red-700 rounded-lg transition duration-150">
+                            Remove
+                        </button>
+                    </div>
+                `;
+                ui.themesList.appendChild(themeEl);
+            });
+
+            document.querySelectorAll('.apply-theme-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const themeId = e.currentTarget.getAttribute('data-theme-id');
+                    const theme = savedThemes.find(t => t.id === themeId);
+                    if (theme) applyTheme(theme);
+                });
+            });
+
+            document.querySelectorAll('.remove-theme-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const themeId = e.currentTarget.getAttribute('data-theme-id');
+                    savedThemes = savedThemes.filter(t => t.id !== themeId);
+                    saveToLocalStorage('wiseclockThemes', savedThemes);
+                    renderThemeList();
+                    showMessage('Design removed.', 'bg-yellow-600');
+                });
+            });
+        }
+
+        // --- IMAGE HANDLING ---
+
+        /** Converts file to Base64 and saves to theme */
+        function handleImageUpload(inputEl, themeKey, clearButtonId) {
+            inputEl.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const base64Data = event.target.result;
+                    
+                    // Update current theme data
+                    let currentTheme = getCurrentTheme();
+                    if (currentTheme) {
+                        currentTheme[themeKey] = base64Data;
+                        saveCurrentTheme(currentTheme);
+                        applyTheme(currentTheme); // Re-apply to update display
+                    } else {
+                        // If no saved theme, apply temporarily
+                        if (themeKey === 'bgImage') applyBackgroundImage(base64Data, true);
+                        if (themeKey === 'clockImage') applyClockImage(base64Data, true);
+                    }
+                    showMessage('Image uploaded and applied! Save your design to persist it.', 'bg-blue-600');
+                };
+                reader.readAsDataURL(file);
+            });
+
+            document.getElementById(clearButtonId).addEventListener('click', () => {
+                let currentTheme = getCurrentTheme();
+                if (currentTheme) {
+                    currentTheme[themeKey] = null;
+                    saveCurrentTheme(currentTheme);
+                    applyTheme(currentTheme);
+                }
+                
+                // Clear display
+                if (themeKey === 'bgImage') applyBackgroundImage(null, true);
+                if (themeKey === 'clockImage') applyClockImage(null, true);
+
+                inputEl.value = ''; // Reset file input
+                showMessage('Image cleared.', 'bg-yellow-600');
+            });
+        }
+        
+        // Helper to get the current theme object from the saved list
+        function getCurrentTheme() {
+            const currentThemeId = localStorage.getItem('wiseclockCurrentThemeId');
+            return savedThemes.find(t => t.id === currentThemeId);
+        }
+
+        // Helper to save the updated theme back to the list
+        function saveCurrentTheme(updatedTheme) {
+            const index = savedThemes.findIndex(t => t.id === updatedTheme.id);
+            if (index !== -1) {
+                savedThemes[index] = updatedTheme;
+            }
+            saveToLocalStorage('wiseclockThemes', savedThemes);
+        }
+
+        function applyBackgroundImage(base64Data, temporary = false) {
+            const root = document.documentElement;
+            if (base64Data) {
+                // Remove surrounding quotes if they exist from local storage read
+                const url = base64Data.replace(/^"|"$/g, '');
+                root.style.setProperty('--bg-image-url', `url(${url})`);
+            } else {
+                root.style.setProperty('--bg-image-url', 'none');
+            }
+        }
+
+        function applyClockImage(base64Data, temporary = false) {
+            if (base64Data) {
+                const url = base64Data.replace(/^"|"$/g, '');
+                ui.clockImageEl.setAttribute('href', url);
+                ui.clockImageEl.style.display = 'block';
+                ui.clockFaceFill.setAttribute('fill', 'url(#clock-face-pattern)');
+            } else {
+                ui.clockImageEl.removeAttribute('href');
+                ui.clockImageEl.style.display = 'none';
+                ui.clockFaceFill.setAttribute('fill', 'var(--color-bg-primary)'); // Fallback to color
+            }
+        }
+
+        // --- CLOCK RENDERING LOGIC ---
+
+        function polarToCartesian(angleInDegrees) {
+            const angleInRadians = (angleInDegrees - 90) * Math.PI / 180.0;
+            return {
+                x: CLOCK_CENTER + (CLOCK_RADIUS * Math.cos(angleInRadians)),
+                y: CLOCK_CENTER + (CLOCK_RADIUS * Math.sin(angleInRadians))
+            };
+        }
+
+        function describeArc(startAngle, endAngle) {
+            const start = polarToCartesian(endAngle);
+            const end = polarToCartesian(startAngle);
+            let angleDifference = endAngle - startAngle;
+
+            // Handle tasks crossing the 12 position (0/360 degrees)
+            if (angleDifference < 0) {
+                angleDifference += 360;
+                endAngle += 360;
+            }
+
+            const largeArcFlag = angleDifference <= 180 ? "0" : "1";
+
+            const d = [
+                "M", CLOCK_CENTER, CLOCK_CENTER,
+                "L", start.x, start.y,
+                "A", CLOCK_RADIUS, CLOCK_RADIUS, 0, largeArcFlag, 0, end.x, end.y,
+                "Z"
+            ].join(" ");
+            return d;
+        }
+
+        function renderSegments() {
+            ui.taskSegments.innerHTML = '';
+            let totalDuration = 0;
+
+            // The clock face represents 12 hours (720 minutes). 
+            // We use startMinuteOfDay % 720 to map the 24-hour time onto the 12-hour clock face.
+
+            taskQueue.forEach(task => {
+                totalDuration += task.duration;
+                
+                // Map the 24hr time to the 12hr clock (0 to 720 minutes)
+                const MAX_MINUTES_ON_12HR_FACE = 720;
+                const startMins12Hr = task.startMinuteOfDay % MAX_MINUTES_ON_12HR_FACE;
+                
+                // Calculate angles from the 12 position (0 degrees)
+                let startAngle = startMins12Hr * DEGREES_PER_TASK_MINUTE;
+                let endAngle = (startMins12Hr + task.duration) * DEGREES_PER_TASK_MINUTE;
+
+                // The path generation handles wrapping if duration is > 12 hours
+                const pathD = describeArc(startAngle, endAngle);
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute('d', pathD);
+                path.setAttribute('fill', task.color);
+                path.setAttribute('opacity', '0.7');
+                path.classList.add('task-segment');
+                ui.taskSegments.appendChild(path);
+            });
+
+            ui.capacityDisplay.textContent = `Total Planned Time: ${totalDuration} minutes`;
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const s = now.getSeconds();
+            const m = now.getMinutes();
+            const h = now.getHours();
+            
+            // Calculate angles based on current time
+            const secondDeg = (s / 60) * 360;
+            const minuteDeg = (m * 6) + (s * 0.1); // Minute angle + second contribution
+            const hourDeg = (h % 12) * 30 + (m * 0.5); // Hour angle + minute contribution
+
+            ui.hourHand.style.transform = `rotate(${hourDeg}deg)`;
+            ui.minuteHand.style.transform = `rotate(${minuteDeg}deg)`;
+            ui.secondHand.style.transform = `rotate(${secondDeg}deg)`;
+            ui.timeDisplay.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        // --- UI & MESSAGE UTILITIES ---
+
+        function showMessage(text, colorClass) {
+            ui.messageBox.textContent = '';
+            ui.messageBox.className = `${colorClass} text-white rounded-lg p-3 mb-4 transition-opacity duration-300`;
+            ui.messageBox.innerHTML = text;
+            ui.messageBox.classList.remove('hidden');
+
+            setTimeout(() => {
+                ui.messageBox.classList.add('hidden');
+            }, 4000);
+        }
+
+        function renderTaskList() {
+            ui.taskList.innerHTML = '';
+
+            if (taskQueue.length === 0) {
+                 ui.taskList.innerHTML = '<p class="text-gray-500 text-center py-4">Add a time block above.</p>';
+                 return;
+            }
+
+            taskQueue.forEach((task) => {
+                const startTime = new Date(task.startTime);
+                const endTime = new Date(task.endTime);
+                
+                const dateStr = startTime.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                const startTimeStr = startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const endTimeStr = endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                const timeRange = `${dateStr} | ${startTimeStr} - ${endTimeStr}`;
+
+                const item = document.createElement('div');
+                item.className = 'flex justify-between items-center p-3 rounded-lg border-l-4 transition duration-150 container-card hover:bg-[#282828]';
+                item.style.borderColor = task.color;
+
+                item.innerHTML = `
+                    <div class="flex-grow">
+                        <p class="text-lg font-bold">${task.name}</p>
+                        <p class="text-sm text-gray-400">${task.duration} mins &middot; <span style="color: ${task.color}" class="font-semibold">${timeRange}</span></p>
+                    </div>
+                    <button data-id="${task.id}" class="remove-task-btn py-1 px-3 bg-red-700 hover:bg-red-800 rounded-lg text-sm font-semibold transition duration-150 text-white">
+                        Remove
+                    </button>
+                `;
+                ui.taskList.appendChild(item);
+            });
+
+            document.querySelectorAll('.remove-task-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const taskId = e.currentTarget.getAttribute('data-id');
+                    removeTask(taskId);
+                });
+            });
+        }
+
+        // --- EVENT LISTENERS & INITIALIZATION ---
+
+        function initEventListeners() {
+            // Task Form Submission
+            document.getElementById('add-task-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = ui.taskNameInput.value.trim();
+                const dateStr = ui.taskDateInput.value;
+                const timeStr = ui.taskTimeInput.value;
+                const durationStr = ui.taskDurationInput.value.trim();
+                
+                const durationMinutes = parseDurationToMinutes(durationStr);
+
+                if (name && dateStr && timeStr && durationMinutes >= 5) {
+                    addTask(name, dateStr, timeStr, durationMinutes);
+                    ui.taskNameInput.value = '';
+                } else {
+                    showMessage('Please ensure all fields are valid. Duration must be at least 5 minutes.', 'bg-red-600');
+                }
+            });
+
+            // Theme Color Preview (instant update)
+            document.querySelectorAll('.color-picker').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const cssVar = colorInputMap[e.target.id];
+                    if (cssVar) {
+                        document.documentElement.style.setProperty(cssVar, e.target.value);
+                    }
+                });
+            });
+            
+            // Save Theme Form
+            document.getElementById('save-theme-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = ui.themeNameInput.value.trim();
+                if (!name) return showMessage('Please enter a name for your design.', 'bg-yellow-600');
+                
+                const newTheme = {
+                    id: crypto.randomUUID(),
+                    name: name,
+                    // UI Colors
+                    accentColor: ui.colorAccent.value,
+                    backgroundColor: ui.colorBg.value,
+                    cardColor: ui.colorCard.value,
+                    // Clock Colors (NEW)
+                    handHourColor: ui.colorHandHour.value,
+                    handMinuteColor: ui.colorHandMinute.value,
+                    handSecondColor: ui.colorHandSecond.value,
+                    numberColor: ui.colorHourNumber.value,
+                    // Images
+                    bgImage: document.documentElement.style.getPropertyValue('--bg-image-url').slice(4, -1).replace(/"/g, ''),
+                    clockImage: ui.clockImageEl.getAttribute('href'),
+                };
+                
+                savedThemes.push(newTheme);
+                saveToLocalStorage('wiseclockThemes', savedThemes);
+                applyTheme(newTheme); // Apply the newly saved theme
+                renderThemeList();
+            });
+
+            // Reset Button
+            document.getElementById('reset-button').addEventListener('click', () => {
+                // Simplified reset confirmation since alerts are forbidden
+                taskQueue = [];
+                sortAndSaveTasks();
+                showMessage('All tasks have been cleared from the clock!', 'bg-red-600');
+            });
+            
+            // Image Upload Handlers
+            handleImageUpload(ui.uploadBgImage, 'bgImage', 'clear-bg-image');
+            handleImageUpload(ui.uploadClockImage, 'clockImage', 'clear-clock-image');
+        }
+
+        function initData() {
+            // Load tasks and theme
+            taskQueue = loadFromLocalStorage('wiseclockTasks', []);
+            savedThemes = loadFromLocalStorage('wiseclockThemes', []);
+
+            // Set default date/time to now
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0];
+            const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            ui.taskDateInput.value = dateStr;
+            ui.taskTimeInput.value = timeStr;
+
+            // Apply current theme or default
+            let currentThemeId = localStorage.getItem('wiseclockCurrentThemeId');
+            let currentTheme = savedThemes.find(t => t.id === currentThemeId);
+            
+            if (!currentTheme && savedThemes.length > 0) {
+                 // Fallback to the first saved theme if ID is missing
+                currentTheme = savedThemes[0];
+                currentThemeId = currentTheme.id;
+                localStorage.setItem('wiseclockCurrentThemeId', currentThemeId);
+            }
+            
+            if (currentTheme) {
+                applyTheme(currentTheme);
+            } else {
+                // Apply hardcoded default theme if no themes exist
+                applyTheme({
+                    id: 'default',
+                    name: 'Default Dark',
+                    accentColor: '#3B82F6',
+                    backgroundColor: '#0f0f0f',
+                    cardColor: '#1a1a1a',
+                    // Default clock colors matching initial CSS variables
+                    handHourColor: '#93C5FD',
+                    handMinuteColor: '#60A5FA',
+                    handSecondColor: '#3B82F6',
+                    numberColor: '#60A5FA',
+                    bgImage: null,
+                    clockImage: null
+                });
+            }
+
+            renderThemeList();
+            sortAndSaveTasks(); // Renders the task list and segments
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+        
+        // --- START APP ---
+        window.onload = function () {
+            initEventListeners();
+            initData();
+        };
+
+    </script>
+</body>
+</html>
